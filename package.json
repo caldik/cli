@@ -1,0 +1,36 @@
+{
+  "name": "@caldik/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Official command line interface for developing, deploying, and managing Caldik stores.",
+  "packageManager": "bun@1.4.4",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/caldik/cli.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": ["dist/caldik.js"],
+  "engines": { "node": ">=22" },
+  "bin": {
+    "caldik": "./dist/caldik.js"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun run build:js && bun run build:binary",
+    "build:js": "bun build src/index.ts --target node --outfile dist/caldik.js",
+    "build:binary": "bun build src/index.ts --compile --outfile dist/caldik",
+    "prepack": "bun run build:js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/cross-spawn": "^6.0.6",
+    "@types/which": "^3.0.4"
+  },
+  "dependencies": {
+    "cross-spawn": "^7.0.6",
+    "which": "^5.0.0"
+  }
+}

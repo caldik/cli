@@ -1,0 +1,119 @@
+name: Build and publish CLI
+
+on:
+  push:
+    branches: [dev, production]
+  pull_request:
+    branches: [dev, production]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and test executable and npm package
+    runs-on: windows-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Smoke test JavaScript and Windows executable
+        shell: pwsh
+        run: |
+          $expected = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $jsVersion = node dist/caldik.js --version
+          if ($LASTEXITCODE -ne 0 -or $jsVersion -ne $expected) { throw 'JavaScript version check failed' }
+          $exeVersion = ./dist/caldik.exe --version
+          if ($LASTEXITCODE -ne 0 -or $exeVersion -ne $expected) { throw 'Executable version check failed' }
+          node dist/caldik.js --help
+          if ($LASTEXITCODE -ne 0) { throw 'JavaScript help check failed' }
+          ./dist/caldik.exe --help
+          if ($LASTEXITCODE -ne 0) { throw 'Executable help check failed' }
+      - name: Pack JavaScript for npm
+        id: package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package -Force | Out-Null
+          npm pack --ignore-scripts --pack-destination package
+          if ($LASTEXITCODE -ne 0) { throw 'npm pack failed' }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Test installed npm package
+        shell: pwsh
+        run: |
+          $archive = (Get-ChildItem package/*.tgz).FullName
+          npm install --global $archive --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Package installation failed' }
+          $expected = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $actual = caldik --version
+          if ($LASTEXITCODE -ne 0 -or $actual -ne $expected) { throw 'Installed CLI version check failed' }
+          caldik --help
+          if ($LASTEXITCODE -ne 0) { throw 'Installed CLI help check failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-executable
+          path: dist/caldik.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: package/*.tgz
+          if-no-files-found: error
+
+  publish:
+    name: Publish npm and GitHub Release
+    needs: build
+    if: github.ref == 'refs/heads/production' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: package
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-executable
+          path: release
+      - name: Publish JavaScript package to npm
+        run: npm publish package/*.tgz --access public --tag latest --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish Windows executable to GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          sha256sum release/caldik.exe > release/SHA256SUMS.txt
+          gh release create "v$VERSION" release/caldik.exe release/SHA256SUMS.txt \
+            --target "$COMMIT" --title "Caldik CLI v$VERSION" --generate-notes
