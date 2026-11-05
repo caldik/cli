@@ -104,8 +104,6 @@ jobs:
           path: release
       - name: Publish JavaScript package to npm
         run: npm publish package/*.tgz --access public --tag latest --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish Windows executable to GitHub Releases
         shell: bash
         env:
