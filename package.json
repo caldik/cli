@@ -1,6 +1,6 @@
 {
   "name": "@caldik/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Official command line interface for developing, deploying, and managing Caldik stores.",
   "packageManager": "bun@1.4.4",
@@ -12,8 +12,12 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "files": ["dist/caldik.js"],
-  "engines": { "node": ">=22" },
+  "files": [
+    "dist/caldik.js"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "caldik": "./dist/caldik.js"
   },
