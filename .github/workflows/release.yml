@@ -103,7 +103,7 @@ jobs:
           name: windows-executable
           path: release
       - name: Publish JavaScript package to npm
-        run: npm publish package/*.tgz --access public --tag latest --ignore-scripts
+        run: npm publish ./package/*.tgz --access public --tag latest --ignore-scripts
       - name: Publish Windows executable to GitHub Releases
         shell: bash
         env:
